@@ -1,11 +1,13 @@
 use std::sync::{Arc, LazyLock};
 
+use chrono::DateTime;
 use log::warn;
 use tap::TapFallible;
 use teloxide::{
     adaptors::DefaultParseMode,
     dispatching::{dialogue::GetChatId, Dispatcher, HandlerExt, UpdateFilterExt},
     macros::BotCommands,
+    payloads::SendPhotoSetters,
     prelude::dptree,
     requests::{Requester, RequesterExt},
     types::{ChatId, InputFile, Message, ParseMode, Update},
@@ -21,6 +23,15 @@ pub static TELEGRAM_ESCAPE_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"([_*\[\]\(\)~`>#\+-=|\{}\.!])").unwrap());
 pub static TEXT_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"[\w\d]{5,}").unwrap());
+
+trait IntoTelegramString: AsRef<str> {
+    fn tg_str(&self) -> String {
+        TELEGRAM_ESCAPE_RE.replace_all(self.as_ref(), "\\$1").into()
+    }
+}
+
+impl IntoTelegramString for String {}
+impl IntoTelegramString for &str {}
 
 #[derive(BotCommands, Clone)]
 #[command(rename_rule = "lowercase")]
@@ -40,13 +51,6 @@ pub fn bot(config: &Config) -> anyhow::Result<BotType> {
 pub type BotType = DefaultParseMode<Bot>;
 
 pub async fn bot_run(bot: BotType, config: Config) -> anyhow::Result<()> {
-    /* let arg = Arc::new(NecessaryArg::new(
-        database,
-        config.admin().iter().map(|u| ChatId(*u)).collect(),
-        config.platform().target(),
-        totp,
-    )); */
-
     let owner = config.platform().owner();
     let self_id = Arc::new(config.barcode_id());
 
@@ -59,7 +63,7 @@ pub async fn bot_run(bot: BotType, config: Config) -> anyhow::Result<()> {
                     match cmd {
                         Command::Ping => handle_ping(bot, msg).await,
                     }
-                    .tap_err(|e| log::error!("Handle command error: {:?}", e))
+                    .tap_err(|e| log::error!("Handle command error: {e:?}"))
                 }),
         )
         .branch(
@@ -98,7 +102,7 @@ pub async fn handle_ping(bot: BotType, msg: Message) -> anyhow::Result<()> {
         format!(
             "Chat id: `{id}`\nVersion: {version}",
             id = msg.chat.id.0,
-            version = TELEGRAM_ESCAPE_RE.replace_all(env!("CARGO_PKG_VERSION"), "\\$1")
+            version = env!("CARGO_PKG_VERSION").tg_str()
         ),
     )
     .await?;
@@ -129,7 +133,16 @@ pub async fn handle_message(
             return Ok(());
         }
     };
-    bot.send_photo(msg.chat.id, InputFile::memory(ret)).await?;
+    bot.send_photo(msg.chat.id, InputFile::memory(ret))
+        .caption(current_time().tg_str())
+        .await?;
 
     Ok(())
+}
+fn current_time() -> String {
+    let time: DateTime<chrono::prelude::Local> =
+        DateTime::from_timestamp(kstool::time::get_current_second() as i64, 0)
+            .unwrap()
+            .into();
+    time.format("%Y-%m-%d %H:%M:%S").to_string()
 }

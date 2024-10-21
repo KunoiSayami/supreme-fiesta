@@ -29,18 +29,19 @@ pub fn merge2(self_id: Arc<String>, code: &str) -> anyhow::Result<ImageOutput> {
     ); */
 
     let mut empty = ImageOutput::from_pixel(
-        std::cmp::max(image1.width(), image2.width()) + 20,
+        std::cmp::max(image1.width(), image2.width()) + 40,
         HEIGHT * 2 + 40,
         Rgba([255, 255, 255, 255]),
     );
 
-    println!("{} {}", image1.height(), image1.width());
-    println!("{} {}", image2.height(), image2.width());
+    //log::debug!("{} {}", image1.height(), image1.width());
+    //log::debug!("{} {}", image2.height(), image2.width());
 
     //image1.copy_from(&image2, 0, image1.height())?;
-    empty.copy_from(&image1, 10, 10)?;
-    empty.copy_from(&image2, 10, image1.height() + 30)?;
-    Ok(empty)
+    empty.copy_from(&image1, 20, 10)?;
+    empty.copy_from(&image2, 20, image1.height() + 30)?;
+
+    Ok(image::imageops::rotate270(&empty))
 }
 
 pub fn merge2memory(self_id: Arc<String>, code: &str) -> anyhow::Result<Vec<u8>> {

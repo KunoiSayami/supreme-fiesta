@@ -2,6 +2,8 @@ use std::path::Path;
 
 use serde::Deserialize;
 
+use crate::code::into_barcode;
+
 #[derive(Deserialize)]
 pub struct Platform {
     #[serde(alias = "api-key")]
@@ -45,6 +47,6 @@ impl Config {
     }
 
     pub fn barcode_id(&self) -> String {
-        format!("\u{00C0}{}", self.id())
+        into_barcode(self.id())
     }
 }
