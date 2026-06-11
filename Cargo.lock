@@ -393,7 +393,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "courier"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "barcoders",
@@ -404,6 +404,7 @@ dependencies = [
  "imageproc",
  "kstool",
  "log",
+ "qrcode",
  "regex",
  "serde",
  "tap",
@@ -1505,6 +1506,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f6d64c71eb498fe9eae14ce4ec935c555749aef511cca85b5568910d6e48001"
 dependencies = [
  "bytemuck",
+]
+
+[[package]]
+name = "qrcode"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
+dependencies = [
+ "image",
 ]
 
 [[package]]

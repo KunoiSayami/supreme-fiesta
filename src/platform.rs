@@ -15,7 +15,7 @@ use teloxide::{
 };
 
 use crate::{
-    code::{into_barcode, merge2memory},
+    code::{into_barcode, merge2memory, qr_memory},
     config::Config,
 };
 
@@ -121,8 +121,14 @@ pub async fn handle_message(
     }
 
     let ret = match tokio::task::spawn_blocking({
-        let barcode = into_barcode(text);
-        move || merge2memory(self_id.clone(), &barcode)
+        let text = text.to_owned();
+        move || {
+            if text.starts_with("http") {
+                qr_memory(&text)
+            } else {
+                merge2memory(self_id.clone(), &into_barcode(&text))
+            }
+        }
     })
     .await?
     {

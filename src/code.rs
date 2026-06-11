@@ -1,7 +1,9 @@
 use std::{io::Cursor, sync::Arc};
 
 use barcoders::{generators::image::Image, sym::code128::Code128};
+use image::Luma;
 use image::{GenericImage, ImageBuffer, Rgba};
+use qrcode::QrCode;
 
 type ImageOutput = ImageBuffer<Rgba<u8>, Vec<u8>>;
 
@@ -74,5 +76,13 @@ pub fn merge2(self_id: Arc<String>, code: &str) -> anyhow::Result<ImageOutput> {
 pub fn merge2memory(self_id: Arc<String>, code: &str) -> anyhow::Result<Vec<u8>> {
     let mut buf = Cursor::new(Vec::new());
     merge2(self_id, code)?.write_to(&mut buf, image::ImageFormat::Png)?;
+    Ok(buf.into_inner())
+}
+
+pub fn qr_memory(text: &str) -> anyhow::Result<Vec<u8>> {
+    let code = QrCode::new(text.as_bytes())?;
+    let image = code.render::<Luma<u8>>().build();
+    let mut buf = Cursor::new(Vec::new());
+    image::DynamicImage::ImageLuma8(image).write_to(&mut buf, image::ImageFormat::Png)?;
     Ok(buf.into_inner())
 }
