@@ -73,6 +73,12 @@ pub fn merge2(self_id: Arc<String>, code: &str) -> anyhow::Result<ImageOutput> {
     Ok(image::imageops::rotate270(&base))
 }
 
+pub fn single_memory(code: &str) -> anyhow::Result<Vec<u8>> {
+    let mut buf = Cursor::new(Vec::new());
+    generate_code_128(code)?.write_to(&mut buf, image::ImageFormat::Png)?;
+    Ok(buf.into_inner())
+}
+
 pub fn merge2memory(self_id: Arc<String>, code: &str) -> anyhow::Result<Vec<u8>> {
     let mut buf = Cursor::new(Vec::new());
     merge2(self_id, code)?.write_to(&mut buf, image::ImageFormat::Png)?;

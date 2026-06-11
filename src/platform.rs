@@ -1,21 +1,24 @@
-use std::sync::{Arc, LazyLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, LazyLock},
+};
 
 use chrono::DateTime;
 use log::warn;
 use tap::TapFallible;
 use teloxide::{
+    Bot,
     adaptors::DefaultParseMode,
-    dispatching::{dialogue::GetChatId, Dispatcher, HandlerExt, UpdateFilterExt},
+    dispatching::{Dispatcher, HandlerExt, UpdateFilterExt},
     macros::BotCommands,
     payloads::SendPhotoSetters,
     prelude::dptree,
     requests::{Requester, RequesterExt},
-    types::{ChatId, InputFile, Message, ParseMode, Update},
-    Bot,
+    types::{InputFile, Message, ParseMode, Update},
 };
 
 use crate::{
-    code::{into_barcode, merge2memory, qr_memory},
+    code::{into_barcode, merge2memory, qr_memory, single_memory},
     config::Config,
 };
 
@@ -23,6 +26,8 @@ pub static TELEGRAM_ESCAPE_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"([_*\[\]\(\)~`>#\+-=|\{}\.!])").unwrap());
 pub static TEXT_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"[\w\d]{5,}").unwrap());
+pub static ALL_NUMERIC_RE: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"^\d+$").unwrap());
 
 trait IntoTelegramString: AsRef<str> {
     fn tg_str(&self) -> String {
@@ -50,9 +55,10 @@ pub fn bot(config: &Config) -> anyhow::Result<BotType> {
 
 pub type BotType = DefaultParseMode<Bot>;
 
+pub type UserMap = Arc<HashMap<i64, String>>;
+
 pub async fn bot_run(bot: BotType, config: Config) -> anyhow::Result<()> {
-    let owner = config.platform().owner();
-    let self_id = Arc::new(config.barcode_id());
+    let user_map: UserMap = Arc::new(config.user_entries().collect());
 
     let handle_message = Update::filter_message()
         .branch(
@@ -68,19 +74,16 @@ pub async fn bot_run(bot: BotType, config: Config) -> anyhow::Result<()> {
         )
         .branch(
             dptree::entry()
-                .filter(move |msg: Message| {
-                    msg.chat_id().eq(&Some(ChatId(owner)))
-                        && msg.text().is_some_and(|s| !s.starts_with('/'))
+                .filter(|msg: Message| {
+                    msg.chat.is_private() && msg.text().is_some_and(|s| !s.starts_with('/'))
                 })
-                .endpoint(
-                    |msg: Message, bot: BotType, self_id: Arc<String>| async move {
-                        handle_message(bot, msg, self_id).await
-                    },
-                ),
+                .endpoint(|msg: Message, bot: BotType, user_map: UserMap| async move {
+                    handle_message(bot, msg, user_map).await
+                }),
         );
 
     let dispatcher = Dispatcher::builder(bot, dptree::entry().branch(handle_message))
-        .dependencies(dptree::deps![self_id])
+        .dependencies(dptree::deps![user_map])
         .default_handler(|_| async {});
 
     #[cfg(not(debug_assertions))]
@@ -109,42 +112,52 @@ pub async fn handle_ping(bot: BotType, msg: Message) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn handle_message(
-    bot: BotType,
-    msg: Message,
-    self_id: Arc<String>,
-) -> anyhow::Result<()> {
+pub async fn handle_message(bot: BotType, msg: Message, user_map: UserMap) -> anyhow::Result<()> {
     let text = msg.text().unwrap();
     if !TEXT_RE.is_match(text) {
         warn!("Ignore wrong input {text}");
         return Ok(());
     }
 
-    let ret = match tokio::task::spawn_blocking({
-        let text = text.to_owned();
-        move || {
-            if text.starts_with("http") {
-                qr_memory(&text)
-            } else {
-                merge2memory(self_id.clone(), &into_barcode(&text))
+    let user_id = msg.from.as_ref().map(|u| u.id.0 as i64);
+    let barcode_id = user_id.and_then(|id| user_map.get(&id).cloned());
+    let is_numeric = ALL_NUMERIC_RE.is_match(text);
+
+    let text = text.to_owned();
+    let ret = tokio::task::spawn_blocking(move || {
+        if is_numeric {
+            match barcode_id {
+                Some(id) => merge2memory(Arc::new(id), &into_barcode(&text)),
+                None => single_memory(&into_barcode(&text)),
             }
+        } else {
+            qr_memory(&text)
         }
     })
-    .await?
-    {
-        Ok(image) => image,
+    .await?;
+
+    send_image(&bot, &msg, ret).await
+}
+
+async fn send_image(
+    bot: &BotType,
+    msg: &Message,
+    result: anyhow::Result<Vec<u8>>,
+) -> anyhow::Result<()> {
+    match result {
+        Ok(image) => {
+            bot.send_photo(msg.chat.id, InputFile::memory(image))
+                .caption(current_time().tg_str())
+                .await?;
+        }
         Err(e) => {
             bot.send_message(msg.chat.id, format!("Encode error: {e:?}"))
                 .await?;
-            return Ok(());
         }
-    };
-    bot.send_photo(msg.chat.id, InputFile::memory(ret))
-        .caption(current_time().tg_str())
-        .await?;
-
+    }
     Ok(())
 }
+
 fn current_time() -> String {
     let time: DateTime<chrono::prelude::Local> =
         DateTime::from_timestamp(kstool::time::get_current_second() as i64, 0)

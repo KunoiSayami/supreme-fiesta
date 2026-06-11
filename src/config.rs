@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use serde::Deserialize;
 
@@ -8,7 +8,6 @@ use crate::code::into_barcode;
 pub struct Platform {
     #[serde(alias = "api-key")]
     api_key: String,
-    owner: i64,
     server: Option<String>,
 }
 
@@ -17,26 +16,25 @@ impl Platform {
         &self.api_key
     }
 
-    pub fn owner(&self) -> i64 {
-        self.owner
-    }
-
     pub fn server(&self) -> Option<&String> {
         self.server.as_ref()
     }
 }
 
+#[derive(Deserialize, Default)]
+pub struct Users {
+    #[serde(flatten)]
+    map: HashMap<i64, String>,
+}
+
 #[derive(Deserialize)]
 pub struct Config {
     platform: Platform,
-    id: String,
+    #[serde(default)]
+    users: Users,
 }
 
 impl Config {
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
     pub async fn load<P: AsRef<Path> + std::fmt::Debug>(file: P) -> anyhow::Result<Self> {
         let s = tokio::fs::read_to_string(file).await?;
         Ok(toml::from_str(&s)?)
@@ -46,7 +44,7 @@ impl Config {
         &self.platform
     }
 
-    pub fn barcode_id(&self) -> String {
-        into_barcode(self.id())
+    pub fn user_entries(&self) -> impl Iterator<Item = (i64, String)> + '_ {
+        self.users.map.iter().map(|(&id, s)| (id, into_barcode(s)))
     }
 }
