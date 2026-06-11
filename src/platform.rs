@@ -4,7 +4,6 @@ use std::{
 };
 
 use chrono::DateTime;
-use log::warn;
 use tap::TapFallible;
 use teloxide::{
     Bot,
@@ -24,8 +23,6 @@ use crate::{
 
 pub static TELEGRAM_ESCAPE_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"([_*\[\]\(\)~`>#\+-=|\{}\.!])").unwrap());
-pub static TEXT_RE: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"[\w\d]{5,}").unwrap());
 pub static ALL_NUMERIC_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"^\d+$").unwrap());
 
@@ -114,8 +111,7 @@ pub async fn handle_ping(bot: BotType, msg: Message) -> anyhow::Result<()> {
 
 pub async fn handle_message(bot: BotType, msg: Message, user_map: UserMap) -> anyhow::Result<()> {
     let text = msg.text().unwrap();
-    if !TEXT_RE.is_match(text) {
-        warn!("Ignore wrong input {text}");
+    if text.is_empty() {
         return Ok(());
     }
 

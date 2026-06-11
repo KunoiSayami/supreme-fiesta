@@ -21,17 +21,11 @@ impl Platform {
     }
 }
 
-#[derive(Deserialize, Default)]
-pub struct Users {
-    #[serde(flatten)]
-    map: HashMap<i64, String>,
-}
-
 #[derive(Deserialize)]
 pub struct Config {
     platform: Platform,
     #[serde(default)]
-    users: Users,
+    users: HashMap<String, String>,
 }
 
 impl Config {
@@ -45,6 +39,8 @@ impl Config {
     }
 
     pub fn user_entries(&self) -> impl Iterator<Item = (i64, String)> + '_ {
-        self.users.map.iter().map(|(&id, s)| (id, into_barcode(s)))
+        self.users
+            .iter()
+            .filter_map(|(k, v)| k.parse::<i64>().ok().map(|id| (id, into_barcode(v))))
     }
 }
