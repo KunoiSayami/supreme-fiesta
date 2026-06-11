@@ -1,6 +1,6 @@
 [package]
 name = "courier"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2024"
 
 [dependencies]
@@ -9,7 +9,7 @@ barcoders = { version = "2.0.0", features = ["image"] }
 chrono = "0.4"
 clap = { version = "4", features = ["cargo"] }
 env_logger = "0.11"
-image = "0.25.4"
+image = "0.25.8"
 imageproc = "0.27.0"
 kstool = "0.3"
 log = { version = "0.4" }
@@ -24,3 +24,11 @@ teloxide = { version = "0.17", default-features = false, features = [
 tokio = { version = "1", features = ["full"] }
 toml = "1"
 qrcode = "0.14"
+rxing = { version = "0.9", default-features = false, features = [
+    "image",
+    "image_formats",
+    "full_barcode_format_support",
+    "decoders",
+    "multi_barcode_readers",
+    "encoding_rs",
+] }

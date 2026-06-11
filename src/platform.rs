@@ -10,6 +10,7 @@ use teloxide::{
     adaptors::DefaultParseMode,
     dispatching::{Dispatcher, HandlerExt, UpdateFilterExt},
     macros::BotCommands,
+    net::Download,
     payloads::SendPhotoSetters,
     prelude::dptree,
     requests::{Requester, RequesterExt},
@@ -17,7 +18,7 @@ use teloxide::{
 };
 
 use crate::{
-    code::{into_barcode, merge2memory, qr_memory, single_memory},
+    code::{decode_image, into_barcode, merge2memory, qr_memory, single_memory},
     config::Config,
 };
 
@@ -77,6 +78,11 @@ pub async fn bot_run(bot: BotType, config: Config) -> anyhow::Result<()> {
                 .endpoint(|msg: Message, bot: BotType, user_map: UserMap| async move {
                     handle_message(bot, msg, user_map).await
                 }),
+        )
+        .branch(
+            dptree::entry()
+                .filter(|msg: Message| msg.chat.is_private() && msg.photo().is_some())
+                .endpoint(|msg: Message, bot: BotType| async move { handle_photo(bot, msg).await }),
         );
 
     let dispatcher = Dispatcher::builder(bot, dptree::entry().branch(handle_message))
@@ -133,6 +139,33 @@ pub async fn handle_message(bot: BotType, msg: Message, user_map: UserMap) -> an
     .await?;
 
     send_image(&bot, &msg, ret).await
+}
+
+async fn handle_photo(bot: BotType, msg: Message) -> anyhow::Result<()> {
+    let photos = msg.photo().unwrap();
+    // pick the largest size
+    let photo = photos.iter().max_by_key(|p| p.width * p.height).unwrap();
+    let file = bot.get_file(photo.file.id.clone()).await?;
+    let mut buf = Vec::new();
+    bot.download_file(&file.path, &mut buf).await?;
+
+    let result = tokio::task::spawn_blocking(move || decode_image(&buf)).await?;
+
+    match result {
+        Ok(texts) => {
+            let reply = texts
+                .iter()
+                .map(|t| t.tg_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            bot.send_message(msg.chat.id, reply).await?;
+        }
+        Err(_) => {
+            bot.send_message(msg.chat.id, "QR code / barcode not found")
+                .await?;
+        }
+    }
+    Ok(())
 }
 
 async fn send_image(

@@ -92,3 +92,16 @@ pub fn qr_memory(text: &str) -> anyhow::Result<Vec<u8>> {
     image::DynamicImage::ImageLuma8(image).write_to(&mut buf, image::ImageFormat::Png)?;
     Ok(buf.into_inner())
 }
+
+pub fn decode_image(data: &[u8]) -> anyhow::Result<Vec<String>> {
+    match rxing::helpers::detect_multiple_in_buffer(data) {
+        Ok(results) if !results.is_empty() => Ok(results
+            .into_iter()
+            .map(|r| r.getText().to_owned())
+            .collect()),
+        Ok(_) | Err(rxing::Exceptions::NotFoundException(_)) => {
+            anyhow::bail!("QR code / barcode not found")
+        }
+        Err(e) => anyhow::bail!("Decode error: {e:?}"),
+    }
+}
