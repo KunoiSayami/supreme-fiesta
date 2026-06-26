@@ -10,7 +10,6 @@ use teloxide::{
     adaptors::DefaultParseMode,
     dispatching::{Dispatcher, HandlerExt, UpdateFilterExt},
     macros::BotCommands,
-    net::Download,
     payloads::SendPhotoSetters,
     prelude::dptree,
     requests::{Requester, RequesterExt},
@@ -146,8 +145,9 @@ async fn handle_photo(bot: BotType, msg: Message) -> anyhow::Result<()> {
     // pick the largest size
     let photo = photos.iter().max_by_key(|p| p.width * p.height).unwrap();
     let file = bot.get_file(photo.file.id.clone()).await?;
-    let mut buf = Vec::new();
-    bot.download_file(&file.path, &mut buf).await?;
+
+    // With --local, file.path is an absolute filesystem path; read directly from disk.
+    let buf = tokio::fs::read(&file.path).await?;
 
     let result = tokio::task::spawn_blocking(move || decode_image(&buf)).await?;
 

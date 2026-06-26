@@ -16,7 +16,9 @@ async fn async_main(config_file: &str) -> anyhow::Result<()> {
 }
 
 fn main() -> anyhow::Result<()> {
-    env_logger::init();
+    env_logger::Builder::from_default_env()
+        .format_timestamp(None)
+        .init();
     let matches = clap::command!()
         .args(&[arg!([CONFIG] "Configure file").default_value("config.toml")])
         .get_matches();

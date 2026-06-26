@@ -8,6 +8,7 @@ A Telegram bot that generates barcode and QR code images from text input.
 |-------|--------|
 | All-numeric (e.g. `1234567`) | Code128 barcode. If the sender has a configured ID, their barcode is merged above the input barcode. |
 | Everything else (e.g. `hello`, `https://example.com`) | QR code |
+| Photo containing a barcode or QR code | Decoded text content |
 
 The bot only responds to private messages and ignores input shorter than 5 characters.
 
@@ -18,7 +19,7 @@ Create a `config.toml` (default path, overridable via CLI argument):
 ```toml
 [platform]
 api-key = "YOUR_TELEGRAM_BOT_TOKEN"
-# server = "https://custom.telegram.api/"  # optional, for custom Bot API server
+# server = "https://custom.telegram.api/"  # optional, URL of a local Telegram Bot API server
 
 # Map Telegram user IDs to their barcode ID strings.
 # Users listed here get a merged barcode (their ID + input) on numeric input.
@@ -37,6 +38,16 @@ courier [CONFIG]
 `CONFIG` defaults to `config.toml`.
 
 Set `RUST_LOG=info` (or `debug`) for logging output.
+
+## Local Bot API Server
+
+To use a local [Telegram Bot API server](https://github.com/tdlib/telegram-bot-api), start it with the `--local` flag:
+
+```
+telegram-bot-api --api-id=YOUR_API_ID --api-hash=YOUR_API_HASH --http-ip-address=127.0.0.1 --local
+```
+
+Then set `server` in `config.toml` to the server's address. With `--local`, the server stores downloaded files on disk and returns absolute filesystem paths, which the bot reads directly.
 
 ## Building
 
